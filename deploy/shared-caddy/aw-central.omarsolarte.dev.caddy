@@ -1,0 +1,8 @@
+# Copiar a /srv/shared-caddy/config/sites/ (el Caddyfile principal importa sites/*.caddy)
+aw.omarsolarte.dev {
+	reverse_proxy aw-central-api:8080
+}
+
+panel.omarsolarte.dev {
+	reverse_proxy aw-central-grafana:3000
+}

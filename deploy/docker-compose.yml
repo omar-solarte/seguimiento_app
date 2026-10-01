@@ -1,5 +1,8 @@
+# aw-central: se publica a través del Caddy compartido (red shared_caddy_edge).
+# Los nombres de servicio llevan prefijo aw- para no colisionar con aliases de otros
+# proyectos que viven en la misma red (api, db, etc.).
 services:
-  db:
+  aw-db:
     image: timescale/timescaledb:latest-pg16
     environment:
       POSTGRES_DB: aw
@@ -7,6 +10,7 @@ services:
       POSTGRES_PASSWORD: ${DB_PASSWORD}
     volumes:
       - db-data:/var/lib/postgresql/data
+    networks: [internal]
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U aw -d aw"]
       interval: 5s
@@ -14,19 +18,25 @@ services:
       retries: 20
     restart: unless-stopped
 
-  api:
+  aw-api:
     build: ../api
+    container_name: aw-central-api
     environment:
-      DB_URL: jdbc:postgresql://db:5432/aw
+      DB_URL: jdbc:postgresql://aw-db:5432/aw
       DB_USER: aw
       DB_PASSWORD: ${DB_PASSWORD}
     depends_on:
-      db:
+      aw-db:
         condition: service_healthy
+    networks:
+      internal:
+      edge:
+        aliases: [aw-central-api]
     restart: unless-stopped
 
-  grafana:
+  aw-grafana:
     image: grafana/grafana:11.2.0
+    container_name: aw-central-grafana
     environment:
       GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
       GF_SERVER_ROOT_URL: https://${GRAFANA_DOMAIN}
@@ -34,30 +44,22 @@ services:
     volumes:
       - grafana-data:/var/lib/grafana
       - ./grafana/provisioning:/etc/grafana/provisioning
+      - ./grafana/dashboards:/var/lib/grafana/dashboards
     depends_on:
-      db:
+      aw-db:
         condition: service_healthy
+    networks:
+      internal:
+      edge:
+        aliases: [aw-central-grafana]
     restart: unless-stopped
 
-  caddy:
-    image: caddy:2
-    ports:
-      - "80:80"
-      - "443:443"
-    environment:
-      API_DOMAIN: ${API_DOMAIN}
-      GRAFANA_DOMAIN: ${GRAFANA_DOMAIN}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy-data:/data
-      - caddy-config:/config
-    depends_on:
-      - api
-      - grafana
-    restart: unless-stopped
+networks:
+  internal:
+  edge:
+    external: true
+    name: shared_caddy_edge
 
 volumes:
   db-data:
   grafana-data:
-  caddy-data:
-  caddy-config:
