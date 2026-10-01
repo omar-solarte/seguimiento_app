@@ -1,0 +1,16 @@
+apiVersion: 1
+datasources:
+  - name: aw-central
+    type: postgres
+    access: proxy
+    url: db:5432
+    user: aw
+    secureJsonData:
+      password: ${DB_PASSWORD}
+    jsonData:
+      database: aw
+      sslmode: disable
+      postgresVersion: 1600
+      timescaledb: true
+    isDefault: true
+    editable: true

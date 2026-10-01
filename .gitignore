@@ -1,0 +1,8 @@
+build/
+.gradle/
+*.jar
+forwarder/forwarder.toml
+forwarder/cursor.json
+deploy/.env
+__pycache__/
+.idea/

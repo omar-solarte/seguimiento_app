@@ -1,0 +1,13 @@
+# Copiar a forwarder.toml y completar. Este archivo NO se versiona (contiene el token).
+server_url = "https://aw.tudominio.com"   # en local: "http://localhost:8080"
+token = "PEGAR_TOKEN_DEL_DISPOSITIVO"
+
+poll_seconds = 60          # cada cuánto se lee el aw-server local
+lookback_minutes = 30      # ventana mínima hacia atrás en cada ciclo
+backfill_hours = 24        # cuánto historial enviar la primera vez
+window_hours = 6           # tamaño de ventana al recuperar historial largo
+replay_events = 20         # últimos N eventos que se reenvían siempre (heartbeats)
+max_batch = 2000           # eventos por POST (el servidor acepta hasta 5000)
+send_titles = false        # false = solo hash del título sale del equipo
+bucket_prefixes = ["aw-watcher-window", "aw-watcher-afk"]
+tz = ""                    # vacío = autodetectar (requiere tzlocal); ej. "America/Bogota"
