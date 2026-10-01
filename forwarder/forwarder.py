@@ -19,6 +19,7 @@ import time
 import tomllib
 import uuid
 from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 
 import requests
 
@@ -42,7 +43,7 @@ def load_config() -> dict:
     cfg.setdefault("replay_events", 20)
     cfg.setdefault("max_batch", 2000)
     cfg.setdefault("send_titles", False)
-    cfg.setdefault("bucket_prefixes", ["aw-watcher-window", "aw-watcher-afk"])
+    cfg.setdefault("bucket_prefixes", ["aw-watcher-window", "aw-watcher-afk", "aw-watcher-web"])
     cfg.setdefault("tz", "")
     if not cfg.get("server_url") or not cfg.get("token"):
         sys.exit("forwarder.toml debe tener server_url y token")
@@ -91,7 +92,21 @@ def sha16(text: str) -> str:
 
 # ---------- minimización ----------
 
-def minimize(bucket_id: str, event: dict, send_titles: bool) -> dict:
+def domain_of(url: str) -> str:
+    """Solo el dominio. Nunca ruta, parámetros ni credenciales de la URL."""
+    try:
+        p = urlparse(url or "")
+        host = p.hostname
+    except ValueError:
+        return "(invalida)"
+    if p.scheme not in ("http", "https") or not host:
+        return "(interno)"  # chrome://, about:blank, nueva pestaña, etc.
+    host = host.lower()
+    return host[4:] if host.startswith("www.") else host
+
+
+def minimize(bucket_id: str, event: dict, send_titles: bool):
+    """Devuelve el evento minimizado, o None si no debe salir del equipo."""
     data = event.get("data") or {}
     if bucket_id.startswith("aw-watcher-window"):
         out = {"app": data.get("app")}
@@ -102,8 +117,14 @@ def minimize(bucket_id: str, event: dict, send_titles: bool) -> dict:
             out["title_hash"] = sha16(title)
     elif bucket_id.startswith("aw-watcher-afk"):
         out = {"status": data.get("status")}
+    elif bucket_id.startswith("aw-watcher-web"):
+        if data.get("incognito"):
+            return None  # incógnito: nada sale del equipo
+        out = {"domain": domain_of(data.get("url")), "audible": bool(data.get("audible"))}
+        if send_titles:
+            out["title"] = data.get("title") or ""
     else:
-        out = data
+        return None  # buckets desconocidos no se envían
     return {
         "bucket_id": bucket_id,
         "source_event_id": int(event["id"]),
@@ -183,7 +204,13 @@ def process_bucket(local: requests.Session, remote: requests.Session, cfg: dict,
     if not selected:
         return
 
-    payload = [minimize(bucket_id, e, cfg["send_titles"]) for e in selected]
+    payload = [m for m in (minimize(bucket_id, e, cfg["send_titles"]) for e in selected) if m]
+    newest = collected[ids_sorted[-1]]
+    if not payload:
+        # todo se descartó (p. ej. solo incógnito): avanza el cursor sin enviar
+        cursor[bucket_id] = {"last_id": ids_sorted[-1], "last_ts": to_utc_z(newest["timestamp"])}
+        save_cursor(cursor)
+        return
     sent = 0
     for i in range(0, len(payload), cfg["max_batch"]):
         chunk = payload[i:i + cfg["max_batch"]]
@@ -192,7 +219,6 @@ def process_bucket(local: requests.Session, remote: requests.Session, cfg: dict,
         if abs(resp.get("skew_seconds", 0)) > 120:
             log.warning("skew de reloj reportado por el servidor: %ss", resp.get("skew_seconds"))
 
-    newest = collected[ids_sorted[-1]]
     cursor[bucket_id] = {"last_id": ids_sorted[-1], "last_ts": to_utc_z(newest["timestamp"])}
     save_cursor(cursor)
     log.info("bucket %s: %d eventos enviados (last_id=%d)", bucket_id, sent, ids_sorted[-1])
