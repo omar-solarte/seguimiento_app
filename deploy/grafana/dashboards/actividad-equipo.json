@@ -6,7 +6,7 @@
   ],
   "timezone": "browser",
   "schemaVersion": 39,
-  "version": 1,
+  "version": 2,
   "editable": true,
   "refresh": "1m",
   "time": {
@@ -410,6 +410,83 @@
       },
       "options": {},
       "id": 8
+    },
+    {
+      "id": 9,
+      "type": "barchart",
+      "title": "Top dominios web (horas)",
+      "gridPos": {
+        "x": 0,
+        "y": 23,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "aw-central"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "aw-central"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT data->>'domain' AS dominio, ROUND((SUM(duration_s)/3600.0)::numeric, 2) AS horas\nFROM event WHERE bucket_id LIKE 'aw-watcher-web%' AND data->>'domain' <> '(interno)' AND $__timeFilter(start_ts)\nGROUP BY 1 ORDER BY 2 DESC LIMIT 10"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "h",
+          "color": {
+            "mode": "palette-classic"
+          }
+        },
+        "overrides": []
+      },
+      "options": {
+        "orientation": "horizontal",
+        "showValue": "auto",
+        "legend": {
+          "showLegend": false
+        }
+      }
+    },
+    {
+      "id": 10,
+      "type": "table",
+      "title": "Dominios por PC (horas)",
+      "gridPos": {
+        "x": 12,
+        "y": 23,
+        "w": 12,
+        "h": 9
+      },
+      "datasource": {
+        "type": "postgres",
+        "uid": "aw-central"
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "postgres",
+            "uid": "aw-central"
+          },
+          "refId": "A",
+          "rawQuery": true,
+          "editorMode": "code",
+          "format": "table",
+          "rawSql": "SELECT d.user_label AS pc, e.data->>'domain' AS dominio, ROUND((SUM(e.duration_s)/3600.0)::numeric, 2) AS horas\nFROM event e JOIN device d ON d.id = e.device_id\nWHERE e.bucket_id LIKE 'aw-watcher-web%' AND e.data->>'domain' <> '(interno)' AND $__timeFilter(e.start_ts)\nGROUP BY 1, 2 ORDER BY 3 DESC LIMIT 25"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "options": {}
     }
   ]
 }
